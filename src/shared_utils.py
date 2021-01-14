@@ -1,7 +1,7 @@
 from collections import defaultdict
-from shapely.geometry import Polygon
-from shapely.ops import cascaded_union
-from descartes import PolygonPatch
+#from shapely.geometry import Polygon
+#from shapely.ops import cascaded_union
+#from descartes import PolygonPatch
 import seaborn as sns
 import re
 import theano.tensor as tt
