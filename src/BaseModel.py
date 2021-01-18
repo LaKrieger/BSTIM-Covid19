@@ -27,39 +27,39 @@ class SpatioTemporalFeature(object):
         ).astype(np.float32)
 
 
-class SpatioTemporalYearlyDemographicsFeature(SpatioTemporalFeature):
-    """ TODO:
-    * county data must be updated to include 2019/2020 demographic data
-      |> fix call
-    """
+# class SpatioTemporalYearlyDemographicsFeature(SpatioTemporalFeature):
+#     """ TODO:
+#     * county data must be updated to include 2019/2020 demographic data
+#       |> fix call
+#     """
+#
+#     def __init__(self, county_dict, group, scale=1.0):
+#         self.dict = {
+#             (year, county): val * scale
+#             for county, values in county_dict.items()
+#             for (g, year), val in values["demographics"].items()
+#             if g == group
+#         }
+#         super().__init__()
+#
+#     def call(self, yearweekday, county):
+#         # TODO: do this properly when data is available!
+#         return self.dict.get((2018, county))
+#         # return self.dict.get((yearweekday.year,county))
 
-    def __init__(self, county_dict, group, scale=1.0):
-        self.dict = {
-            (year, county): val * scale
-            for county, values in county_dict.items()
-            for (g, year), val in values["demographics"].items()
-            if g == group
-        }
-        super().__init__()
 
-    def call(self, yearweekday, county):
-        # TODO: do this properly when data is available!
-        return self.dict.get((2018, county))
-        # return self.dict.get((yearweekday.year,county))
-
-
-class SpatialEastWestFeature(SpatioTemporalFeature):
-    def __init__(self, county_dict):
-        self.dict = {
-            county: 1.0
-            if "east" in values["region"]
-            else (0.5 if "berlin" in values["region"] else 0.0)
-            for county, values in county_dict.items()
-        }
-        super().__init__()
-
-    def call(self, yearweekday, county):
-        return self.dict.get(county)
+# class SpatialEastWestFeature(SpatioTemporalFeature):
+#     def __init__(self, county_dict):
+#         self.dict = {
+#             county: 1.0
+#             if "east" in values["region"]
+#             else (0.5 if "berlin" in values["region"] else 0.0)
+#             for county, values in county_dict.items()
+#         }
+#         super().__init__()
+#
+#     def call(self, yearweekday, county):
+#         return self.dict.get(county)
 
 
 class TemporalFourierFeature(SpatioTemporalFeature):
@@ -205,13 +205,13 @@ class BaseModel(object):
         self,
         trange,
         counties,
-        ia_effect_filenames,
+        #ia_effect_filenames,
         model=None,
-        num_ia=16,
-        include_ia=True,
+        #num_ia=16,
+        #include_ia= True,
         include_report_delay=True,
         report_delay_order=4,
-        include_demographics=True,
+        #include_demographics=True,
         include_temporal=True,
         trend_poly_order=4,
         include_periodic=True,
@@ -219,13 +219,13 @@ class BaseModel(object):
         orthogonalize=False,
     ):
 
-        self.county_info = counties
-        self.ia_effect_filenames = ia_effect_filenames
-        self.num_ia = num_ia if include_ia else 0
-        self.include_ia = include_ia
+        #self.county_info = counties
+        #self.ia_effect_filenames = ia_effect_filenames
+        #self.num_ia = num_ia if include_ia else 0
+        #self.include_ia = include_ia
         self.include_report_delay = include_report_delay
         self.report_delay_order = report_delay_order
-        self.include_demographics = include_demographics
+        #self.include_demographics = include_demographics
         self.include_temporal = include_temporal
         self.trend_poly_order = trend_poly_order
         self.include_periodic = include_periodic
@@ -247,28 +247,28 @@ class BaseModel(object):
                 ): TemporalPeriodicPolynomialFeature(trange[0], 7, i)
                 for i in range(self.periodic_poly_order + 1)
             }
-            if self.include_periodic
-            else {},
-            "spatiotemporal": {
-                "demographic_{}".format(group): SpatioTemporalYearlyDemographicsFeature(
-                    self.county_info, group
-                )
-                for group in ["[0-5)", "[5-20)", "[20-65)"]
-            }
-            if self.include_demographics
-            else {},
-            "temporal_report_delay": {
-                "report_delay": ReportDelayPolynomialFeature(
-                    trange[1] - pd.Timedelta(days=5), trange[1], self.report_delay_order
-                )
-            }
-            if self.include_report_delay
-            else {},  # what is going in here?
-            "exposure": {
-                "exposure": SpatioTemporalYearlyDemographicsFeature(
-                    self.county_info, "total", 1.0 / 100000
-                )
-            },
+            # if self.include_periodic
+            # else {},
+            # "spatiotemporal": {
+            #     "demographic_{}".format(group): SpatioTemporalYearlyDemographicsFeature(
+            #         self.county_info, group
+            #     )
+            #     for group in ["[0-5)", "[5-20)", "[20-65)"]
+            # }
+            # if self.include_demographics
+            # else {},
+            # "temporal_report_delay": {
+            #     "report_delay": ReportDelayPolynomialFeature(
+            #         trange[1] - pd.Timedelta(days=5), trange[1], self.report_delay_order
+            #     )
+            # }
+            # if self.include_report_delay
+            # else {},  # what is going in here?
+            # "exposure": {
+            #     "exposure": SpatioTemporalYearlyDemographicsFeature(
+            #         self.county_info, "total", 1.0 / 100000
+            #     )
+            # },
         }
 
     def evaluate_features(self, days, counties):
@@ -310,117 +310,117 @@ class BaseModel(object):
         num_ts = TS.shape[1]
         num_counties = len(counties)
 
-        if self.include_ia:
-            with pm.Model() as self.model:
-                # interaction effects are generated externally -> flat prior
-                IA = pm.Flat(
-                    "IA",
-                    testval=np.ones((num_obs, self.num_ia)),
-                    shape=(num_obs, self.num_ia),
-                )
-
-                # priors
-                # NOTE: Vary parameters over time -> W_ia dependent on time
-                # δ = 1/√α
-                δ = pm.HalfCauchy("δ", 10, testval=1.0)
-                α = pm.Deterministic("α", np.float32(1.0) / δ)
-
-                W_ia = pm.Normal(
-                    "W_ia",
-                    mu=0,
-                    sd=10,
-                    testval=np.zeros(self.num_ia),
-                    shape=self.num_ia,
-                )
-                W_t_s = pm.Normal(
-                    "W_t_s", mu=0, sd=10, testval=np.zeros(num_t_s), shape=num_t_s
-                )
-                W_t_t = pm.Normal(
-                    "W_t_t",
-                    mu=0,
-                    sd=10,
-                    testval=np.zeros((num_counties, num_t_t)),
-                    shape=(num_counties, num_t_t),
-                )
-
-                W_t_d = pm.Normal(
-                    "W_t_d", mu=0, sd=10, testval=np.zeros(num_t_d), shape=num_t_d
-                )
-                W_ts = pm.Normal(
-                    "W_ts", mu=0, sd=10, testval=np.zeros(num_ts), shape=num_ts
-                )
-
-                self.param_names = ["δ", "W_ia", "W_t_s", "W_t_t", "W_t_d", "W_ts"]
-                self.params = [δ, W_ia, W_t_s, W_t_t, W_t_d, W_ts]
-
-                expanded_Wtt = tt.tile(
-                    W_t_t.reshape(shape=(1, num_counties, -1)), reps=(21, 1, 1)
-                )
-                expanded_TT = np.reshape(T_T, newshape=(21, 412, 2))
-                result_TT = tt.flatten(tt.sum(expanded_TT * expanded_Wtt, axis=-1))
-
-                # calculate mean rates
-                μ = pm.Deterministic(
-                    "μ",
-                    tt.exp(
-                        tt.dot(IA, W_ia)
-                        + tt.dot(T_S, W_t_s)
-                        + result_TT
-                        + tt.dot(T_D, W_t_d)
-                        + tt.dot(TS, W_ts)
-                        + log_exposure
-                    ),
-                )
-                # constrain to observations
-                pm.NegativeBinomial("Y", mu=μ, alpha=α, observed=Y_obs)
-        else:
+        # if self.include_ia:
+        #     with pm.Model() as self.model:
+        #         # interaction effects are generated externally -> flat prior
+        #         IA = pm.Flat(
+        #             "IA",
+        #             testval=np.ones((num_obs, self.num_ia)),
+        #             shape=(num_obs, self.num_ia),
+        #         )
+        #
+        #         # priors
+        #         # NOTE: Vary parameters over time -> W_ia dependent on time
+        #         # δ = 1/√α
+        #         δ = pm.HalfCauchy("δ", 10, testval=1.0)
+        #         α = pm.Deterministic("α", np.float32(1.0) / δ)
+        #
+        #         W_ia = pm.Normal(
+        #             "W_ia",
+        #             mu=0,
+        #             sd=10,
+        #             testval=np.zeros(self.num_ia),
+        #             shape=self.num_ia,
+        #         )
+        #         W_t_s = pm.Normal(
+        #             "W_t_s", mu=0, sd=10, testval=np.zeros(num_t_s), shape=num_t_s
+        #         )
+        #         W_t_t = pm.Normal(
+        #             "W_t_t",
+        #             mu=0,
+        #             sd=10,
+        #             testval=np.zeros((num_counties, num_t_t)),
+        #             shape=(num_counties, num_t_t),
+        #         )
+        #
+        #         W_t_d = pm.Normal(
+        #             "W_t_d", mu=0, sd=10, testval=np.zeros(num_t_d), shape=num_t_d
+        #         )
+        #         W_ts = pm.Normal(
+        #             "W_ts", mu=0, sd=10, testval=np.zeros(num_ts), shape=num_ts
+        #         )
+        #
+        #         self.param_names = ["δ", "W_ia", "W_t_s", "W_t_t", "W_t_d", "W_ts"]
+        #         self.params = [δ, W_ia, W_t_s, W_t_t, W_t_d, W_ts]
+        #
+        #         expanded_Wtt = tt.tile(
+        #             W_t_t.reshape(shape=(1, num_counties, -1)), reps=(21, 1, 1)
+        #         )
+        #         expanded_TT = np.reshape(T_T, newshape=(21, 412, 2))
+        #         result_TT = tt.flatten(tt.sum(expanded_TT * expanded_Wtt, axis=-1))
+        #
+        #         # calculate mean rates
+        #         μ = pm.Deterministic(
+        #             "μ",
+        #             tt.exp(
+        #                 tt.dot(IA, W_ia)
+        #                 + tt.dot(T_S, W_t_s)
+        #                 + result_TT
+        #                 + tt.dot(T_D, W_t_d)
+        #                 + tt.dot(TS, W_ts)
+        #                 + log_exposure
+        #             ),
+        #         )
+        #         # constrain to observations
+        #         pm.NegativeBinomial("Y", mu=μ, alpha=α, observed=Y_obs)
+        # else:
             # doesn't include IA
-            with pm.Model() as self.model:
-                # priors
-                # δ = 1/√α
-                δ = pm.HalfCauchy("δ", 10, testval=1.0)
-                α = pm.Deterministic("α", np.float32(1.0) / δ)
+        with pm.Model() as self.model:
+            # priors
+            # δ = 1/√α
+            δ = pm.HalfCauchy("δ", 10, testval=1.0)
+            α = pm.Deterministic("α", np.float32(1.0) / δ)
 
-                W_t_s = pm.Normal(
-                    "W_t_s", mu=0, sd=10, testval=np.zeros(num_t_s), shape=num_t_s
-                )
-                W_t_t = pm.Normal(
-                    "W_t_t",
-                    mu=0,
-                    sd=10,
-                    testval=np.zeros((num_counties, num_t_t)),
-                    shape=(num_counties, num_t_t),
-                )
+            W_t_s = pm.Normal(
+                "W_t_s", mu=0, sd=10, testval=np.zeros(num_t_s), shape=num_t_s
+            )
+            W_t_t = pm.Normal(
+                "W_t_t",
+                mu=0,
+                sd=10,
+                testval=np.zeros((num_counties, num_t_t)),
+                shape=(num_counties, num_t_t),
+            )
 
-                W_t_d = pm.Normal(
-                    "W_t_d", mu=0, sd=10, testval=np.zeros(num_t_d), shape=num_t_d
-                )
-                W_ts = pm.Normal(
-                    "W_ts", mu=0, sd=10, testval=np.zeros(num_ts), shape=num_ts
-                )
+            W_t_d = pm.Normal(
+                "W_t_d", mu=0, sd=10, testval=np.zeros(num_t_d), shape=num_t_d
+            )
+            W_ts = pm.Normal(
+                "W_ts", mu=0, sd=10, testval=np.zeros(num_ts), shape=num_ts
+            )
 
-                self.param_names = ["δ", "W_t_s", "W_t_t", "W_t_d", "W_ts"]
-                self.params = [δ, W_t_s, W_t_t, W_t_d, W_ts]
+            self.param_names = ["δ", "W_t_s", "W_t_t", "W_t_d", "W_ts"]
+            self.params = [δ, W_t_s, W_t_t, W_t_d, W_ts]
 
-                expanded_Wtt = tt.tile(
-                    W_t_t.reshape(shape=(1, num_counties, -1)), reps=(21, 1, 1)
-                )
-                expanded_TT = np.reshape(T_T, newshape=(21, 412, 2))
-                result_TT = tt.flatten(tt.sum(expanded_TT * expanded_Wtt, axis=-1))
+            expanded_Wtt = tt.tile(
+                W_t_t.reshape(shape=(1, num_counties, -1)), reps=(21, 1, 1)
+            )
+            expanded_TT = np.reshape(T_T, newshape=(21, 412, 2))
+            result_TT = tt.flatten(tt.sum(expanded_TT * expanded_Wtt, axis=-1))
 
-                # calculate mean rates
-                μ = pm.Deterministic(
-                    "μ",
-                    tt.exp(
-                        tt.dot(T_S, W_t_s)
-                        + result_TT
-                        + tt.dot(T_D, W_t_d)
-                        + tt.dot(TS, W_ts)
-                        + log_exposure
-                    ),
-                )
-                # constrain to observations
-                pm.NegativeBinomial("Y", mu=μ, alpha=α, observed=Y_obs)
+            # calculate mean rates
+            μ = pm.Deterministic(
+                "μ",
+                tt.exp(
+                    tt.dot(T_S, W_t_s)
+                    + result_TT
+                    + tt.dot(T_D, W_t_d)
+                    + tt.dot(TS, W_ts)
+                    + log_exposure
+                ),
+            )
+            # constrain to observations
+            pm.NegativeBinomial("Y", mu=μ, alpha=α, observed=Y_obs)
 
     def sample_parameters(
         self,

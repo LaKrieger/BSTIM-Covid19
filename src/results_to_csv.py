@@ -9,7 +9,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from pymc3.stats import quantiles
+#from pymc3.stats import quantiles
+# use np.quantile
 from shared_utils import *
 
 
@@ -93,10 +94,10 @@ def plotdata_csv(start, n_weeks, csv_path, counties, output_dir):
             )
         ]
     )
-    # TODO: figure out if we want to replace quantiles function (newer pymc3 versions don't support it)
-    prediction_quantiles = quantiles(prediction_samples, (5, 25, 75, 95))
-    prediction_quantiles_trend = quantiles(prediction_samples_trend, (5, 25, 75, 95))
-    prediction_quantiles_7day_inc = quantiles(predictions_7day_inc, (5, 25, 75, 95))
+
+    prediction_quantiles = np.quantile(prediction_samples, (0.5, 0.25, 0.75, 0.95))
+    prediction_quantiles_trend = np.quantile(prediction_samples_trend, (0.5, 0.25, 0.75, 0.95))
+    prediction_quantiles_7day_inc = np.quantile(predictions_7day_inc, (0.5, 0.25, 0.75, 0.95))
 
     prediction_mean = pd.DataFrame(
         data=np.mean(prediction_samples_mu, axis=0),

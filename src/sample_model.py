@@ -3,7 +3,7 @@ import os
 import pickle as pkl
 import sys
 import warnings
-
+import os
 import pandas as pd
 import pymc3 as pm
 from BaseModel import BaseModel
@@ -30,6 +30,12 @@ def main(
     num_cores = num_chains
     disease = "covid19"
     prediction_region = "germany"
+
+    # LKOS data
+    current_directory = os.path.dirname(__file__)
+    parent_directory = os.path.split(current_directory)[0]  # Repeat as needed
+    grand_parent = os.path.split(parent_directory)[0]
+    LKOSdata = pd.read_csv(grand_parent + "/preprocessedLKOS.csv")
 
     """ Model: """
     use_demographics = True
@@ -68,8 +74,8 @@ def main(
         warnings.warn("Currently using less then 100 sample sets for IA Effects")
 
     # Load data: This must be in the correct place at the moment!
-    with open("../data/counties/counties.pkl", "rb") as f:
-        county_info = pkl.load(f)
+    # with open("../data/counties/counties.pkl", "rb") as f:
+    #     county_info = pkl.load(f)
 
     # Prediciton is 5 days into the future
     days_into_future = 5
@@ -105,7 +111,7 @@ def main(
 
     model = BaseModel(
         tspan,
-        county_info,
+        # county_info,
         ia_effect_files,
         include_ia=use_interactions,
         include_report_delay=use_report_delay,

@@ -21,12 +21,13 @@ from datetime import timedelta
 
 yearweek_regex = re.compile(r"([0-9]+)-KW([0-9]+)")
 
+# county_list has form OrderedDict([('LK', 'ID'), ..]), similar info is in ID_to_name.csv
+
 def make_county_dict():
     with open('../data/counties/counties.pkl', "rb") as f:
         counties = pkl.load(f)
-
     county_list = []
-    #print(counties)
+
     for key, _ in counties.items():
         county_name = counties[key]['name']
         encoded_name = counties[key]['name'].encode('utf-8')
@@ -45,26 +46,26 @@ def _parse_yearweek(yearweek):
 
 parse_yearweek = np.frompyfunc(_parse_yearweek, 1, 1)
 
-def load_data(prediction_region, counties, csv_path, seperator=",", pad=None):
-    data = pd.read_csv(csv_path,
-                       sep=seperator, encoding='iso-8859-1', index_col=0)
-
-    if "99999" in data.columns:
-        data.drop("99999", inplace=True, axis=1)
-
-    data = data.loc[:, list(
-        filter(lambda cid: prediction_region in counties[cid]["region"], data.columns))]
-
-    if pad is not None:
-        # get last date
-        last_date = pd.Timestamp(data.iloc[:, -1].index[-1])
-        extra_range = pd.date_range(
-            last_date+timedelta(1), last_date+timedelta(pad))
-        for x in extra_range:
-            data = data.append(pd.Series(name=str(x)[:11]))
-
-    data.index = [pd.Timestamp(date) for date in data.index]
-    return data
+# def load_data(prediction_region, counties, csv_path, seperator=",", pad=None):
+#     data = pd.read_csv(csv_path,
+#                        sep=seperator, encoding='iso-8859-1', index_col=0)
+#
+#     if "99999" in data.columns:
+#         data.drop("99999", inplace=True, axis=1)
+#
+#     data = data.loc[:, list(
+#         filter(lambda cid: prediction_region in counties[cid]["region"], data.columns))]
+#
+#     if pad is not None:
+#         # get last date
+#         last_date = pd.Timestamp(data.iloc[:, -1].index[-1])
+#         extra_range = pd.date_range(
+#             last_date+timedelta(1), last_date+timedelta(pad))
+#         for x in extra_range:
+#             data = data.append(pd.Series(name=str(x)[:11]))
+#
+#     data.index = [pd.Timestamp(date) for date in data.index]
+#     return data
 
 def load_data_n_weeks(
     start,
