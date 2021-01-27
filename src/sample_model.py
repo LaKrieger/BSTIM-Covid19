@@ -109,7 +109,7 @@ def main(
 
     print(os.getcwd())
 
-    model = BaseModel(
+    model = BaseModel( # hier werden die
         tspan,
         # county_info,
         ia_effect_files,

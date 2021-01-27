@@ -42,7 +42,6 @@ class SpatioTemporalYearlyDemographicsFeature(SpatioTemporalFeature):
         }
         super().__init__()
 
-    # yearweekday -> t -> Datum, county -> "x" -> county_id
     def call(self, yearweekday, county):
         # TODO: do this properly when data is available!
         return self.dict.get((2018, county))
@@ -105,17 +104,9 @@ class TemporalPolynomialFeature(SpatioTemporalFeature):
         self.scale = (tmax - t0).days
         super().__init__()
 
-    # t -> datum, x -> Landkreis (ID)
     def call(self, t, x):
         t_delta = (t - self.t0).days / self.scale
         return t_delta ** self.order
-
-def temporal_polynomial_feature(t, t0, tmax, order):
-    scale = (tmax - t0).days # (pd.Datetime - pd.Datetime).days -> differenz in tagen (int)
-    t_delta = (t - t0).days / scale
-
-    return t_delta ** order
-
 
 
 class ReportDelayPolynomialFeature(SpatioTemporalFeature):
@@ -241,10 +232,6 @@ class BaseModel(object):
         self.periodic_poly_order = periodic_poly_order
         self.trange = trange  # 0 -> 28th of Jan; 1-> Last
 
-        fn = TemporalPolynomialFeature(trange[0], trange[1], 3) # t -> (t/21)^3
-        fn("31.01.2021") # (10/21)^3
-        fn("31.01.2021", "SK Osnabrueck")
-
         self.features = {
             "temporal_trend": {
                 "temporal_polynomial_{}".format(i): TemporalPolynomialFeature(
@@ -254,15 +241,6 @@ class BaseModel(object):
             }
             if self.include_temporal
             else {},
-            # wenn include_temporal: dann poly_order + 1 basisfunktionsklassen im dictionary (z.B. self.trend_poly_order = 2)
-            # features
-            #      |---> "temporal_trend"
-            #                |---> "temporal_polynomial_0" -> TemporalPolynomialFeature(trange[0], trange[1], 0)
-            #                      "temporal_polynomial_1" -> TemporalPolynomialFeature(trange[0], trange[1], 1)
-            #                      "temporal_polynomial_2" -> TemporalPolynomialFeature(trange[0], trange[1], 2)
-            # wenn false {}
-
-
             "temporal_seasonal": {
                 "temporal_periodic_polynomial_{}".format(
                     i
@@ -271,8 +249,6 @@ class BaseModel(object):
             }
             if self.include_periodic
             else {},
-            ###
-
             "spatiotemporal": {
                 "demographic_{}".format(group): SpatioTemporalYearlyDemographicsFeature(
                     self.county_info, group
@@ -281,8 +257,6 @@ class BaseModel(object):
             }
             if self.include_demographics
             else {},
-            ###
-
             "temporal_report_delay": {
                 "report_delay": ReportDelayPolynomialFeature(
                     trange[1] - pd.Timedelta(days=5), trange[1], self.report_delay_order
@@ -290,22 +264,19 @@ class BaseModel(object):
             }
             if self.include_report_delay
             else {},  # what is going in here?
-            ###
-
             "exposure": {
                 "exposure": SpatioTemporalYearlyDemographicsFeature(
                     self.county_info, "total", 1.0 / 100000
                 )
             },
-            # feature["exposure"]["exposure"] = SpationTemporalYearlyDemographicsFeature(self.county_info, "total", 1.0 / 10000)
         }
 
     def evaluate_features(self, days, counties):
         all_features = {}
-        for group_name, features in self.features.items(): #self.features -> "collection" aller basis funktionen
+        for group_name, features in self.features.items():
             group_features = {}
             for feature_name, feature in features.items():
-                feature_matrix = feature(days, counties) # SuperClass.__init__()
+                feature_matrix = feature(days, counties)
                 group_features[feature_name] = pd.DataFrame(
                     feature_matrix[:, :], index=days, columns=counties
                 ).stack()
@@ -316,42 +287,84 @@ class BaseModel(object):
                 if len(group_features) == 0
                 else pd.DataFrame(group_features)
             )
-        return all_features # dictionary {"feature_name"}
+        return all_features
 
-        # all_features
-        #     |--> "temporal_trend" 
-        #                |--> "pd.MultiIndex" (<- Dokumentation)
-        #                      (group_features) x days x counties ("tensor")
-        #                          ^-> temporal_polynomial_0
-        #                              temporal_polynomial_1
-        #                              temporal_polynomial_2
-        #    |--> "temporal_report_delay"
-        #                |--> "pd.MutliIndex"
-        #                      (group_features) x days x counties ("tensor")
-        #                        ^-> report_delay_polymial_4 (singleton dimension)
-        # ...
+
+    features = evalutate_features(...)
+    model = model(model_params, features, targets)
+    trace = sample_model(model)
 
     def init_model(self, target):
-        days, counties = target.index, target.columns
+        def features():
+            days, counties = target.index, target.columns
 
-        # extract features
-        features = self.evaluate_features(days, counties) # dict ^ "all_features"
-        Y_obs = target.stack().values.astype(np.float32)
-        T_S = features["temporal_seasonal"].values.astype(np.float32) # collect "tensors" for group "temporal_seasonal" 
-        T_T = features["temporal_trend"].values.astype(np.float32) # collect ...
-        T_D = features["temporal_report_delay"].values.astype(np.float32) # ...
-        TS = features["spatiotemporal"].values.astype(np.float32) # ... as numpy arrays! (m x n x p) - array
+            # extract features
+            features = self.evaluate_features(days, counties)
+            Y_obs = target.stack().values.astype(np.float32)
+            T_S = features["temporal_seasonal"].values.astype(np.float32)
+            T_T = features["temporal_trend"].values.astype(np.float32)
+            T_D = features["temporal_report_delay"].values.astype(np.float32)
+            TS = features["spatiotemporal"].values.astype(np.float32)
 
-        log_exposure = np.log(features["exposure"].values.astype(np.float32).ravel())
+        return (T_S, T_T, T_D, TS)
+
 
         # extract dimensions
-        num_obs = np.prod(target.shape)
-        num_t_s = T_S.shape[1] # how many "temporal_seasonal" features?
-        num_t_t = T_T.shape[1] # ... "temporal_trend" ...
-        num_t_d = T_D.shape[1] # ...
-        num_ts = TS.shape[1] # ...
-        num_counties = len(counties)
-        # ^ Loads of work done.
+        def model(params):
+            log_exposure = np.log(features["exposure"].values.astype(np.float32).ravel())
+            num_obs = np.prod(target.shape)
+            num_t_s = T_S.shape[1]
+            num_t_t = T_T.shape[1]
+            num_t_d = T_D.shape[1]
+            num_ts = TS.shape[1]
+            num_counties = len(counties)
+            with pm.Model() as model:
+                # priors
+                # δ = 1/√α
+                δ = pm.HalfCauchy("δ", 10, testval=1.0)
+                α = pm.Deterministic("α", np.float32(1.0) / δ)
+
+                W_t_s = pm.Normal(
+                    "W_t_s", mu=0, sd=10, testval=np.zeros(num_t_s), shape=num_t_s
+                )
+                W_t_t = pm.Normal(
+                    "W_t_t",
+                    mu=0,
+                    sd=10,
+                    testval=np.zeros((num_counties, num_t_t)),
+                    shape=(num_counties, num_t_t),
+                )
+
+                W_t_d = pm.Normal(
+                    "W_t_d", mu=0, sd=10, testval=np.zeros(num_t_d), shape=num_t_d
+                )
+                W_ts = pm.Normal(
+                    "W_ts", mu=0, sd=10, testval=np.zeros(num_ts), shape=num_ts
+                )
+
+                self.param_names = ["δ", "W_t_s", "W_t_t", "W_t_d", "W_ts"]
+                self.params = [δ, W_t_s, W_t_t, W_t_d, W_ts]
+
+                expanded_Wtt = tt.tile(
+                    W_t_t.reshape(shape=(1, num_counties, -1)), reps=(21, 1, 1)
+                )
+                expanded_TT = np.reshape(T_T, newshape=(21, 412, 2))
+                result_TT = tt.flatten(tt.sum(expanded_TT * expanded_Wtt, axis=-1))
+
+                # calculate mean rates
+                μ = pm.Deterministic(
+                    "μ",
+                    tt.exp(
+                        tt.dot(T_S, W_t_s)
+                        + result_TT
+                        + tt.dot(T_D, W_t_d)
+                        + tt.dot(TS, W_ts)
+                        + log_exposure
+                    ),
+                )
+                # constrain to observations
+                pm.NegativeBinomial("Y", mu=μ, alpha=α, observed=Y_obs)
+            return model
 
         if self.include_ia:
             with pm.Model() as self.model:
@@ -418,7 +431,7 @@ class BaseModel(object):
                 pm.NegativeBinomial("Y", mu=μ, alpha=α, observed=Y_obs)
         else:
             # doesn't include IA
-            with pm.Model() as self.model: # einfach als model
+            with pm.Model() as self.model:
                 # priors
                 # δ = 1/√α
                 δ = pm.HalfCauchy("δ", 10, testval=1.0)
